@@ -81,7 +81,6 @@ package_download "postgresql" "${POSTGRESQL_VERSION}" "${BUILD_DIR}/${VENDORED_P
 
 echo "-----> Initializing database"
 export PGHOST=/tmp
-DATABASE=postgres_buildpack_db
 
 # Set up and configure a database for Heroku CI
 user="u$(</dev/urandom tr -dc 'a-z0-9' | head -c 13)"
@@ -97,8 +96,15 @@ LC_TIME=en_US.UTF-8     \
 initdb -E UTF8 | indent
 pg_ctl -l .pg.log -w start | indent
 psql -c "CREATE USER ${user} WITH SUPERUSER ENCRYPTED PASSWORD '${password}'" postgres | indent
-createdb --owner $user $DATABASE | indent
-DATABASE_URL="postgres://${user}:${password}@localhost:5432/${DATABASE}"
+createdb --owner $user trail_test | indent
+createdb --owner $user trail_test2 | indent
+createdb --owner $user trail_test3 | indent
+createdb --owner $user trail_test4 | indent
+createdb --owner $user trail_test5 | indent
+createdb --owner $user trail_test6 | indent
+createdb --owner $user trail_test7 | indent
+createdb --owner $user trail_test8 | indent
+DATABASE_URL="postgres://${user}:${password}@localhost:5432/trail_test"
 # N.B.: we do not stop the server here because some buildpacks rely on
 # having a live database at DATABASE_URL in order to run the build
 
