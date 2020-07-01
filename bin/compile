@@ -14,20 +14,21 @@ unset GIT_DIR
 BUILD_DIR=$1
 CACHE_DIR=$2
 ENV_DIR=$3
-LP_DIR=`cd $(dirname $0); cd ..; pwd`
 BUILDPACK_DIR="$(dirname $(dirname $0))"
 
 # config
 S3_BUCKET="ci-database-binary"
-POSTGRESQL_MAJOR_VERSION=10
+POSTGRESQL_MAJOR_VERSION=12
 if [ -f "$ENV_DIR/POSTGRESQL_VERSION" ]
 then
   POSTGRESQL_MAJOR_VERSION="$(cat $ENV_DIR/POSTGRESQL_VERSION)"
 fi
 
 case "$POSTGRESQL_MAJOR_VERSION" in
-  10)  POSTGRESQL_VERSION="10.1";;
-  9.6) POSTGRESQL_VERSION="9.6.15";;
+  12)  POSTGRESQL_VERSION="12.2";;
+  11)  POSTGRESQL_VERSION="11.7";;
+  10)  POSTGRESQL_VERSION="10.12";;
+  9.6) POSTGRESQL_VERSION="9.6.17";;
   *)   POSTGRESQL_VERSION="$POSTGRESQL_MAJOR_VERSION";;
 esac
 
@@ -64,14 +65,15 @@ echo "Using postgresql version: ${POSTGRESQL_VERSION}" | indent
 case $STACK in
     cedar-14) : ;;
     heroku-16) : ;;
-    heroku-16-build) : ;;
+    heroku-18) ;;
+    heroku-20) ;;
     *) error "Unrecognized stack version: ${STACK}";;
 esac
 
 echo "Using stack version: ${STACK}" | indent
 
 # vendor directories
-VENDORED_POSTGRESQL="vendor/postgresql"
+VENDORED_POSTGRESQL=".indyno/vendor/postgresql"
 
 # vendor postgresql into the slug
 PATH="$BUILD_DIR/$VENDORED_POSTGRESQL/bin:$PATH"
@@ -86,7 +88,7 @@ export PGHOST=/tmp
 user="u$(</dev/urandom tr -dc 'a-z0-9' | head -c 13)"
 password="p$(</dev/urandom tr -dc 'a-z0-9' | head -c 64)"
 
-export PGDATA=$BUILD_DIR/vendor/postgresql/data
+export PGDATA=$BUILD_DIR/.indyno/vendor/postgresql/data
 LC_COLLATE=en_US.UTF-8  \
 LC_CTYPE=en_US.UTF-8    \
 LC_MESSAGES=en_US.UTF-8 \
@@ -94,6 +96,11 @@ LC_MONETARY=en_US.UTF-8 \
 LC_NUMERIC=en_US.UTF-8  \
 LC_TIME=en_US.UTF-8     \
 initdb -E UTF8 | indent
+if [ -f "$ENV_DIR/HEROKU_CI_POSTGRES_FSYNC_OFF" ]
+then
+  echo "-----> Setting fsync=off in /app/.indyno/vendor/postgresql/data/postgresql.conf"
+  echo "fsync=off" >> /app/.indyno/vendor/postgresql/data/postgresql.conf
+fi
 pg_ctl -l .pg.log -w start | indent
 psql -c "CREATE USER ${user} WITH SUPERUSER ENCRYPTED PASSWORD '${password}'" postgres | indent
 createdb --owner $user trail_test | indent
@@ -112,13 +119,13 @@ echo "export PGHOST=$PGHOST" >> $BUILDPACK_DIR/export
 echo "export DATABASE_URL=$DATABASE_URL" >> $BUILDPACK_DIR/export
 
 # setting .profile.d script for database startup
-echo "-----> Copying .profile.d/pg.sh to add postgresql binaries to PATH"
+echo "-----> Copying .profile.d/00-pg-path.sh to add postgresql binaries to PATH"
 mkdir -p $BUILD_DIR/.profile.d
-cat<<\EOF > $BUILD_DIR/.profile.d/pg-path.sh
-PATH=$HOME/vendor/postgresql/bin:$PATH
+cat<<\EOF > $BUILD_DIR/.profile.d/00-pg-path.sh
+PATH=$HOME/.indyno/vendor/postgresql/bin:$PATH
 
 export PGHOST=/tmp
-export PGDATA=$HOME/vendor/postgresql/data
+export PGDATA=$HOME/.indyno/vendor/postgresql/data
 
 if ! pg_ctl status >/dev/null;
 then
@@ -126,8 +133,21 @@ then
 fi
 EOF
 
-cat<<EOF > $BUILD_DIR/.profile.d/pg-env.sh
+cat<<EOF > $BUILD_DIR/.profile.d/01-pg-env.sh
 export DATABASE_URL="$DATABASE_URL"
 EOF
 
-echo "-----> postgresql done"
+cat<<EOF > $BUILDPACK_DIR/background
+PATH=$HOME/.indyno/vendor/postgresql/bin:$PATH
+export PGHOST="$PGHOST"
+export DATABASE_URL="$DATABASE_URL"
+export PGHOST=/tmp
+export PGDATA=$HOME/.indyno/vendor/postgresql/data
+if pg_ctl status >/dev/null; then
+  pg_ctl -l .pg.log -w restart >/dev/null
+else
+  pg_ctl -l .pg.log -w start >/dev/null
+fi
+EOF
+
+echo "-----> Postgresql done"
