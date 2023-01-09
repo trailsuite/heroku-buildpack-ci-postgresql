@@ -104,7 +104,6 @@ then
 fi
 pg_ctl -l .pg.log -w start | indent
 psql -c "CREATE USER ${user} WITH SUPERUSER ENCRYPTED PASSWORD '${password}'" postgres | indent
-
 createdb --owner $user trail_test | indent
 createdb --owner $user trail_test2 | indent
 createdb --owner $user trail_test3 | indent
