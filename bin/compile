@@ -18,17 +18,19 @@ BUILDPACK_DIR="$(dirname $(dirname $0))"
 
 # config
 S3_BUCKET="ci-database-binary"
-POSTGRESQL_MAJOR_VERSION=12
+POSTGRESQL_MAJOR_VERSION=14
 if [ -f "$ENV_DIR/POSTGRESQL_VERSION" ]
 then
   POSTGRESQL_MAJOR_VERSION="$(cat $ENV_DIR/POSTGRESQL_VERSION)"
 fi
 
 case "$POSTGRESQL_MAJOR_VERSION" in
-  12)  POSTGRESQL_VERSION="12.2";;
-  11)  POSTGRESQL_VERSION="11.7";;
-  10)  POSTGRESQL_VERSION="10.12";;
-  9.6) POSTGRESQL_VERSION="9.6.17";;
+  14)  POSTGRESQL_VERSION="14.5";;
+  13)  POSTGRESQL_VERSION="13.8";;
+  12)  POSTGRESQL_VERSION="12.12";;
+  11)  POSTGRESQL_VERSION="11.17";;
+  10)  POSTGRESQL_VERSION="10.22";;
+  9.6) POSTGRESQL_VERSION="9.6.24";;
   *)   POSTGRESQL_VERSION="$POSTGRESQL_MAJOR_VERSION";;
 esac
 
@@ -57,16 +59,15 @@ function package_download() {
   then
     error "Specified postgresql version ${POSTGRESQL_VERSION} is not available"
   fi
-  curl $package -s -o - | tar xzf - -C $location
+  curl $package -sSf -o - | tar xzf - -C $location
 }
 
 echo "Using postgresql version: ${POSTGRESQL_VERSION}" | indent
 
 case $STACK in
-    cedar-14) : ;;
-    heroku-16) : ;;
     heroku-18) ;;
     heroku-20) ;;
+    heroku-22) ;;
     *) error "Unrecognized stack version: ${STACK}";;
 esac
 
@@ -112,6 +113,15 @@ createdb --owner $user trail_test6 | indent
 createdb --owner $user trail_test7 | indent
 createdb --owner $user trail_test8 | indent
 DATABASE_URL="postgres://${user}:${password}@localhost:5432/trail_test"
+
+if [ -f "$ENV_DIR/HEROKU_CI_POSTGRES_HEROKU_EXT_OFF" ]
+then
+  echo "-----> Skipping heroku_ext support"
+else
+  echo "-----> Creating heroku_ext schema for extensions"
+  psql "$DATABASE_URL" -c "CREATE SCHEMA heroku_ext" | indent
+fi
+
 # N.B.: we do not stop the server here because some buildpacks rely on
 # having a live database at DATABASE_URL in order to run the build
 

@@ -6,11 +6,7 @@ set -euo pipefail
 
 STACK="${1}"
 
-if [[ "${STACK}" == "cedar-14" ]]; then
-    BASE_IMAGE="heroku/${STACK/-/:}"
-else
-    BASE_IMAGE="heroku/${STACK/-/:}-build"
-fi
+BASE_IMAGE="heroku/${STACK/-/:}-build"
 
 OUTPUT_IMAGE="postgresql-test-${STACK}"
 
@@ -26,6 +22,6 @@ docker build \
 echo "Checking PostgreSQL server presence and version..."
 
 TEST_COMMAND="for f in .profile.d/*; do source \"\$f\"; done && psql -tAc 'SHOW server_version;' \"\$DATABASE_URL\" | grep \"${POSTGRESQL_VERSION:-}\""
-docker run --rm -it "${OUTPUT_IMAGE}" bash -c "${TEST_COMMAND}"
+docker run --rm -t "${OUTPUT_IMAGE}" bash -c "${TEST_COMMAND}"
 
 echo "Success!"
